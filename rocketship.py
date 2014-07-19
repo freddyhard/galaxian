@@ -105,7 +105,8 @@ class RocketShip(Player):
         self.laser.draw(window)
         
         for f in range(self.lives):
-            window.blit(self.spriteLife, (10 + f * (self.spriteLifeRect.width + 5), screenHeight - self.spriteLifeRect.height))
+            window.blit(self.spriteLife, (10 + f * (self.spriteLifeRect.width + 5), 
+                                            screenHeight - self.spriteLifeRect.height))
             
 
 
