@@ -7,6 +7,7 @@ from bomb import Bomb
 from floatingscore import FloatingScore
 
 
+
 class Galaxian():
     def __init__(self, sprite, FPS, x, y, startFrame, galaxianNumber, width, height):
         #self.number = num
@@ -16,6 +17,10 @@ class Galaxian():
         # after a dive they need to get back into formation
         self.formationX = x
         self.formationY = y
+        
+        self.colour = sprite
+        self.leadNumber = -1
+        self.escaped = False
         
         self.number = galaxianNumber
         self.offScreenX = 50
@@ -30,7 +35,7 @@ class Galaxian():
         self.bombTotal = 3
         # for yellow galaxian and formation diving only 
         self.bonusScore = [200, 300, 800]
-        self.bonusScoreIndex = 0
+        #self.bonusScoreIndex = 0
         
         self.dxRate = 0.05
         # the player can move at speed 3.0. additional rates added below
@@ -46,16 +51,16 @@ class Galaxian():
             self.bombTotal += 3
             self.dxMax += 1.0
         elif sprite == "yellow":
+            startFrame = 0
             self.score += 30
             self.bombTotal += 3
             # let leader accelerate twice as fast as the others
             self.dxRate += 0.05
             self.dxMax += 1.25
             # special limits for formation diving of yellow galaxian only
-            self.dxRateLimit = 0.05
-            self.dxMaxLimit = 0.25
+            self.dxRateCap = 0.05
+            self.dxMaxCap = 0.25
             
-        
         
         # initialise with correct bomb load
         self.bombLoad = self.bombTotal
@@ -69,10 +74,14 @@ class Galaxian():
         # number for RED galaxians to know who is in control
         self.divingLeaderNo = 0
         
-        self.spriteIndex = glob.glob(os.path.join("images", sprite + "_gal_*.png"))
-        self.spriteStart = pygame.image.load(self.spriteIndex[startFrame]).convert_alpha()
+        # decided to load the array of sprites in total once instead of loading every time a new frame is needed  
+        self.spriteArray = []
+        spriteIndex = glob.glob(os.path.join("images", sprite + "_gal_*.png"))
+        for f in range(len(spriteIndex)):
+            self.spriteArray.append(pygame.image.load(spriteIndex[f]).convert_alpha())
         
-        self.sprite = self.spriteStart
+        
+        self.sprite = self.spriteArray[startFrame]
         self.hitArea = self.sprite.get_rect()
         
         self.direction = 90.0
@@ -97,19 +106,18 @@ class Galaxian():
     
     """
     - this will constantly try and set the galaxians x position to the same as the player"""
-    def targetPlayer(self, player, dxRateLimit = 0.0, dxMaxLimit = 0.0):
+    def targetPlayer(self, player, dxRateCap = 0.0, dxMaxCap = 0.0):
         drift = player.x - self.x
         # test to see whether +/- the side ways acceleration from the current sideways speed
         if drift != 0:
             drift = drift / math.fabs(drift)
-            self.dx += (self.dxRate - dxRateLimit) * drift
-        
+            self.dx += (self.dxRate - dxRateCap) * drift
         
         # limit the sideways speed to the galaxians max speed
-        if self.dx > self.dxMax - dxMaxLimit:
-            self.dx = self.dxMax - dxMaxLimit
-        elif self.dx < -(self.dxMax - dxMaxLimit):
-            self.dx = - (self.dxMax - dxMaxLimit)
+        if self.dx > self.dxMax - dxMaxCap:
+            self.dx = self.dxMax - dxMaxCap
+        elif self.dx < -(self.dxMax - dxMaxCap):
+            self.dx = - (self.dxMax - dxMaxCap)
         
     
     """
@@ -119,9 +127,10 @@ class Galaxian():
         state = States()
         checkNumbers = []
         
-        # if any of these Red galaxians are alive then test to see if they can join a formation dive
-        if galaxianAliveArray[self.number - 6]:
-            checkNumbers.append(self.number - 6)
+        # if any of these Red galaxians add them to array to check for formation dive
+        for f in range(6, 8, 1):
+            if galaxianAliveArray[self.number - f]:
+                checkNumbers.append(self.number -f)
             
         if galaxianAliveArray[self.number - 1]:
             checkNumbers.append(self.number - 1)
@@ -132,8 +141,10 @@ class Galaxian():
 
         for f in range(len(checkNumbers)):
             for gal in range(len(galaxians)):
-                if galaxians[gal].number == checkNumbers[f] and galaxians[gal].state == state.FORMATION:
+                if galaxians[gal].number == checkNumbers[f] and galaxians[gal].state == state.FORMATION and galaxians[gal].colour == "red":
                     self.divingTeam.append(galaxians[gal])
+                    # when red galaxian gets destroyed in formation this number will identify the group leader
+                    galaxians[gal].leadNumber = self.number
                     galaxians[gal].state = state.FORMATION_DIVING
                     self.divingTeamStartSize += 1
                     # team full so break out of loop
@@ -199,6 +210,7 @@ class Galaxian():
             self.speed = 3.0
             self.bombLoad = self.bombTotal
             self.divingTeamStartSize = 0
+            self.leadNumber = -1
             self.y = -20
             self.dx = 0.0
             self.state = stateChange
@@ -225,23 +237,22 @@ class Galaxian():
         
         if self.state == state.DIVING:
             self.score *= 2
-          
         elif self.state == state.FORMATION_DIVING:
-            if self.number == 17 or self.number == 33:
+            if self.colour == "yellow":
                 # free up the team to dive individually - if any are left
                 for f in range(len(self.divingTeam)):
                     self.divingTeam[f].state = state.DIVING
                     self.divingTeam[f].downSpeed = self.downSpeed
                     self.divingTeam[f].dx = self.dx
                 
-                x = self.x
-                if x < 0:
-                    x = 0
-                elif x + 30 > self.screenWidth:
-                    x = self.screenWidth - 30
+                scoreX = self.x
+                if scoreX < 0:
+                    scoreX = 0
+                elif scoreX + 30 > self.screenWidth:
+                    scoreX = self.screenWidth - 30
                 
                 self.score = self.bonusScore[self.divingTeamStartSize - len(self.divingTeam)]
-                floatingScores.append(FloatingScore(x, self.y, self.score, self.FPS))
+                floatingScores.append(FloatingScore(scoreX, self.y, self.score, self.FPS))
             else:
                 self.score *= 2
         elif self.state == state.LAUNCHING and len(self.divingTeam) > 0:
@@ -260,10 +271,14 @@ class Galaxian():
                 self.divingTeam.pop(f)
                 return
     
-    
-    def commonMove(self, explosions, player, bombs):
+    """
+    all galaxians carry out these instructions
+    - drop bombs
+    - point towards the player
+    - limit their rotation to look downwards even when they pass under the player"""
+    def commonMove(self, explosions, player, bombs):   
         if self.y > 270 and random() * 30 < 1 and self.bombLoad > 0:
-            bombs.append(Bomb(self.x, self.y, self.dx * 0.35, self.downSpeed, self.FPS))
+            bombs.append(Bomb(self.x, self.y, self.dx, self.downSpeed, self.FPS))
             self.bombLoad -= 1
             
         self.direction = wrap360(pointDirection(self.x, self.y, player.x, player.y))
@@ -286,9 +301,9 @@ class Galaxian():
     """
     - testing when it should be destroyed
     - drop bombs
-    - move in 1 of its 4 states
+    - move in 1 of its 5 states
     - tests for collision with player"""
-    def move(self, explosions, formationMove, player, bombs, floatingScores):
+    def move(self, explosions, formationMove, player, bombs, floatingScores, extraGalaxians):
         state = States()
         self.formationX += formationMove
         
@@ -297,16 +312,7 @@ class Galaxian():
         if self.destroyed:
             self.killSelf(explosions, player, False, floatingScores)
             return
-         
-        """----------------------------  TESTING ONLY  ---------------------------------
-        #array = [11, 16, 22, 27, 32, 38]
-        array = [17, 33]
-        st = ["FORMATION", "LAUNCHING", "DIVING", "LANDING", "FORMATION_DIVING"]
-        for f in range(2):
-            if self.number == array[f] and self.state == state.LAUNCHING:
-                print self.number, st[self.state]
-        #"""
-        
+
         if self.state == state.FORMATION:
             self.x = self.formationX
             self.y = self.formationY
@@ -343,10 +349,14 @@ class Galaxian():
             # common to DIVING and FORMATION_DIVING
             self.commonMove(explosions, player, bombs)
             self.collideWithPlayer(explosions, player, floatingScores)
-            
+            # this will only apply to the magenta galaxians. these can have a lot more side ways speed
+            # so possibly move too far off of the side of the screen
             resetX = (self.x < -self.offScreenX or self.x > self.screenWidth + self.offScreenX)
             
             if self.y > self.screenHeight + 20 or resetX:
+                if self.colour == "yellow" and extraGalaxians < 2:
+                    self.escaped = True
+                    return
                 if resetX:
                     self.x = self.screenWidth / 2
                 self.changeState(state.LANDING)
@@ -377,8 +387,8 @@ class Galaxian():
                 self.changeState(state.FORMATION)
             """========================================================================================================="""
         elif self.state == state.FORMATION_DIVING:
-            if self.number == 17 or self.number == 33:
-                self.targetPlayer(player, self.dxRateLimit, self.dxMaxLimit)
+            if self.colour == "yellow":
+                self.targetPlayer(player, self.dxRateCap, self.dxMaxCap)
                 self.y += self.downSpeed
                 self.x += self.dx
                 
@@ -409,16 +419,16 @@ class Galaxian():
         self.spriteCounter = (self.spriteCounter + 1) % self.spriteStep
         
         if self.spriteCounter == 0:
-            self.spriteFrame = (self.spriteFrame + 1) % len(self.spriteIndex)
+            self.spriteFrame = (self.spriteFrame + 1) % len(self.spriteArray)
         
         if animate:
-            self.sprite = pygame.image.load(self.spriteIndex[self.spriteFrame])
+            self.sprite = self.spriteArray[self.spriteFrame]
         
         else:
-            self.sprite = pygame.image.load(self.spriteIndex[0])
+            self.sprite = self.spriteArray[0]
         
         self.sprite = pygame.transform.rotate(self.sprite, self.direction).convert_alpha()
-        self.spriteCentre = matchCentre(self.spriteStart, self.sprite)
+        self.spriteCentre = matchCentre(self.spriteArray[0], self.sprite)
         
         self.hitArea = pygame.Rect(self.x + self.spriteCentre.x, self.y + self.spriteCentre.y, 
                                    self.spriteCentre.width, self.spriteCentre.height)
@@ -440,7 +450,8 @@ class Galaxian():
     def draw(self, window):
         window.blit(self.sprite, (self.x + self.spriteCentre[0], self.y + self.spriteCentre[1]))
         
-        # testing only
+        # ------------
+        # TESTING ONLY
         #pygame.draw.rect(window, (0,255,100), (self.hitArea.x, self.hitArea.y, self.hitArea[2], self.hitArea[3]), 1)
-        
-    
+        #pygame.draw.rect(window, (0,255,100), (self.x, self.y, 1, 1), 1)
+        # ------------

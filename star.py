@@ -27,3 +27,8 @@ class Star():
     def draw(self, window):
         if self.counter > self.timer / 2:
             window.blit(self.sprite, (self.x, self.y))
+        
+
+        
+        
+        

@@ -31,9 +31,6 @@ class Player():
                                    self.spriteCentre.width, self.spriteCentre.height)
         
         
-        
-        
-        
-        
+
     def draw(self, window):
         window.blit(self.sprite, (self.x + self.spriteCentre[0], self.y + self.spriteCentre[1]))

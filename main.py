@@ -16,7 +16,6 @@ SCREEN_HEIGHT = 740
 FPS = 60
 X_SPACE = 48 # centre distance between galaxians while in formation
 NEW_LIFE_BONUS = 10000
-
 #-------------------------------------------------------------------------------
 #                                 GAME FUNCTIONS
 #-------------------------------------------------------------------------------    
@@ -24,9 +23,13 @@ NEW_LIFE_BONUS = 10000
 def updateHiScore():
     global highScore
     
-    hiScoreFile = open('hiscore', 'w')
-    hiScoreFile.write(str(highScore))
-    hiScoreFile.close()
+    try:
+        hiScoreFile = open('hiscore', 'w')
+        hiScoreFile.write(str(highScore))
+        hiScoreFile.close()
+    except IOError:
+        #oops!
+        print "Cannot write High Score to HD "
 
 
 
@@ -43,14 +46,13 @@ def attackPlayer(galaxians, galaxianAliveArray):
         
         if len(availableToDive) > 0:
             randomNumber = randint(0, len(availableToDive) - 1)
-            
+            # ------------
             # TESTING ONLY
-            #if galaxians[availableToDive[randomNumber]].number != 17 and galaxians[availableToDive[randomNumber]].number != 33:
+            # only want leaders to dive for now
+            #if galaxians[availableToDive[randomNumber]].colour != "yellow":
             #    return
-            #randomNumber = 17
-            
-            # set up a formation dive team if a Yellow galaxian has been picked
-            if galaxians[availableToDive[randomNumber]].number == 17 or galaxians[availableToDive[randomNumber]].number == 33:
+            # ------------
+            if galaxians[availableToDive[randomNumber]].colour == "yellow":
                 galaxians[availableToDive[randomNumber]].getTeam(galaxianAliveArray, galaxians)
                 #print galaxians[availableToDive[randomNumber]].number
             
@@ -80,13 +82,12 @@ def exitPauseCheck():
             if (gameOver and gameEvent.key == pygame.K_SPACE):
                 pygame.mixer.Sound(os.path.join("sounds", "start.ogg")).play().set_volume(0.2)
                 gameOver = False
-            # TESTING ONLY
             """
+            # TESTING ONLY
             if (gameEvent.key == pygame.K_BACKSPACE and not gameOver):
                 # testing only
                 for f in range(len(galaxians)):
-                    if (galaxians[f].number != 17 and galaxians[f].number != 11 and galaxians[f].number != 22 and# and !=16
-                        galaxians[f].number != 33 and galaxians[f].number != 27 and galaxians[f].number != 38):#and != 32
+                    if galaxians[f].colour != "yellow" and galaxians[f].colour != "red":
                         galaxians[f].destroyed = True
                 #--------------
                 #player.alive = False
@@ -98,19 +99,18 @@ def exitPauseCheck():
 
 # the formation of galaxians is built in this fashion so that a quicker search can be done to 
 # find the formation edge every time a galaxian gets destroyed
-def buildGalaxians(galaxians):
+def buildGalaxians(galaxians, galaxianFormation):
     randPos = randint(18, SCREEN_WIDTH - (X_SPACE * 9 + 18))
     startFrame = 0
-    galaxianFormation = (3, 4, 5, 6, 5, 5, 6, 5, 4, 3)
+    
     counter = 0
     
-    for cols in range(10):
+    for cols in range(len(galaxianFormation)):
         sprite = "blue"
-        startFrame = (startFrame + 1) % 3
+        startFrame = (startFrame + 1) % 4
         for rows in range(galaxianFormation[cols]):
             if rows == 5:
                 sprite = "yellow"
-                startFrame = 0
             elif rows == 4:
                 sprite = "red"
             elif rows == 3:
@@ -130,12 +130,18 @@ def buildGalaxians(galaxians):
 - counter is starting index of array to search through
 - direction indicates the search direction through the array minMaxBorder"""
 def getFormationEdge(minMaxBorder, edge, counter, direction):
-    galaxianFormation = (3, 4, 5, 6, 5, 5, 6, 5, 4, 3)
-    for cols in range(10):
-        for rows in range(galaxianFormation[cols]):
+    global currentGalaxianFormation
+    tempFormation = currentGalaxianFormation
+    # this fixes the problem when there is 1 extra yellow galaxian from the
+    # previous level. otherwise it is okay if there are 0 or 2 extra galaxians
+    if len(minMaxBorder) == 47 and direction == -1:
+        tempFormation = [3,4,5,6,5,6,6,5,4,3]
+    for cols in range(len(tempFormation)):
+        for rows in range(tempFormation[cols]):
             if minMaxBorder[counter]:
                 return edge + X_SPACE * cols * direction
             counter += direction
+    return 0
 
 
 # stops the formation from moving off the screen
@@ -153,7 +159,6 @@ def decrementTimer(t):
 
 
 # stops the formation moving side ways into a laser
-
 def formationMove():
     state = States()
     for f in range(len(galaxians)):
@@ -176,7 +181,7 @@ def displayInstructions(window, stars):
         return None
     
     # put in random stars for starting a new game
-    for f in range(30):#70
+    for f in range(70):#30
         stars.append(Star(FPS, SCREEN_WIDTH, SCREEN_HEIGHT))
         stars[f].x = randint(0, SCREEN_WIDTH - 3)
         stars[f].y = randint(0, SCREEN_HEIGHT)
@@ -190,17 +195,17 @@ def displayInstructions(window, stars):
 #-------------------------------------------------------------------------------
 #                               INITIALISE GAME
 #-------------------------------------------------------------------------------
-pygame.mixer.pre_init(44100, -16, 16, 2048)
+pygame.mixer.pre_init(44100, -16, 16, 4096)
 pygame.init()
 
 pygame.display.set_icon(pygame.image.load(os.path.join("images", "icon.png")))
 window = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
-pygame.display.set_caption("Galaxian (1.1.2)")
+pygame.display.set_caption("Galaxian (1.2.0)")
 
 pygame.mouse.set_visible(False)
 gameOver = True
 gamePaused = False
-newLevel = True
+
 divingTotal = 0
 maxDiving = 3
 
@@ -209,7 +214,6 @@ formationMoveX = 0.8 * plusOrMinusOne()
 # arrays of objects that need to be controlled
 galaxians = []
 explosions = []
-lasers = []
 backgroundStars = []
 backgroundStarTimer = 0
 bombs = []
@@ -218,6 +222,8 @@ floatingScores = []
 player = None
 newLife = 0
 
+# when leaders join next level
+extraGalaxians = 0
 
 
 highScore = 0
@@ -226,9 +232,12 @@ try:
     highScore = int(hiScoreFile.readline())
     hiScoreFile.close()
 except IOError:
-    hiScoreFile = open('hiscore', 'w')
-    hiScoreFile.write("0")
-    hiScoreFile.close()
+    try:
+        hiScoreFile = open('hiscore', 'w')
+        hiScoreFile.write("0")
+        hiScoreFile.close()
+    except IOError:
+        print "Cannot create high score file on the HD!"
 
     
 
@@ -251,7 +260,8 @@ newLevelTimer = FPS * 2
 diveTimer = FPS
 
 # text
-fontArial = pygame.font.SysFont('arial', 18, True, False)
+fontArial = pygame.font.Font(os.path.join("fonts", "DejaVuSansMono-Bold.ttf"), 14)
+#fontArial = pygame.font.SysFont('arial', 18, True, False)
 
 # colours
 c_black = (0,0,0)
@@ -287,9 +297,13 @@ while (True):
     #                               BUILD NEW WAVE OF GALAXIANS
     #    -------------------------------------------------------------------------------
     if newLevelTimer == 0:
-        # get original left and right edge of formation 
-        (startingLeftEdge, startingRightEdge) = buildGalaxians(galaxians)
-        
+        # add extra leaders from previous level
+        currentGalaxianFormation = [3, 4, 5, 6, 5, 5, 6, 5, 4, 3]
+        for f in range(extraGalaxians):
+            currentGalaxianFormation[4 + f] = 6
+            
+        # get original left and right edge of formation
+        (startingLeftEdge, startingRightEdge) = buildGalaxians(galaxians, currentGalaxianFormation)
         
         # set all galaxians as in existence - a new formation has just been built
         minMaxBorder = [True for f in range(len(galaxians))]
@@ -298,6 +312,7 @@ while (True):
         formationRightEdge = startingRightEdge
         newLevelTimer = FPS * 2
         player.level += 1
+        extraGalaxians = 0
         
     #    ------------------------- just the essentials here ----------------------------
     window.fill(c_black)
@@ -311,14 +326,16 @@ while (True):
     #                                    MOVE OR PAUSE
     #    -------------------------------------------------------------------------------
     if not gamePaused:
+        # ------------
         # TESTING ONLY
         #print gameTimer.get_fps()
+        # ------------
         
         for f in range(len(floatingScores)):
             floatingScores[f].move()
-        
+
         # generate background stars
-        backgroundStarTimer = (backgroundStarTimer + 1) % (FPS / 3)#8
+        backgroundStarTimer = (backgroundStarTimer + 1) % (FPS / 8)#3
         if backgroundStarTimer == 0:
             backgroundStars.append(Star(FPS, SCREEN_WIDTH, SCREEN_HEIGHT))
         
@@ -351,32 +368,36 @@ while (True):
                 upperLimit = 20
             
             diveTimer = decrementTimer(diveTimer)
-            if  player.alive and (len(galaxians) <= 4 or 
+            if player.alive and (len(galaxians) <= 4 or 
                                                      (diveTimer == 0 and randint(0, upperLimit) == 0 and 
                                                       divingTotal < maxDiving + player.level / 3)):
                 attackPlayer(galaxians, minMaxBorder)
                 diveTimer = FPS / player.level
             
-            divingTotal = 0
-            for f in range(len(galaxians)):
-                galaxians[f].move(explosions, galaxianFormationMove, player, bombs, floatingScores)
-                # count the number of galaxians diving or getting ready to dive
-                if (galaxians[f].state == state.DIVING or galaxians[f].state == state.LAUNCHING or 
-                                                            galaxians[f].state == state.FORMATION_DIVING):
-                    divingTotal += 1 
-            
-            # only need to test for a new formation edge when a galaxian is destroyed
+            # assume no galaxians have been destroyed so get boundary edge is not necessary
             getBoundaryEdge = False
+            # assume none are diving
+            divingTotal = 0
             
             for f in range(len(galaxians)):
+                galaxians[f].move(explosions, galaxianFormationMove, player, bombs, floatingScores, extraGalaxians)
+                
                 if galaxians[f].destroyed:
-                    # do not BREAK. multiple galaxians can be destroyed with a single laser
                     minMaxBorder[galaxians[f].number] = False
                     getBoundaryEdge = True
-        
+                elif galaxians[f].escaped:
+                    minMaxBorder[galaxians[f].number] = False
+                    getBoundaryEdge = True
+                    galaxians[f].destroyed = True
+                    extraGalaxians += 1
+                # count the number of galaxians diving or getting ready to dive
+                elif (galaxians[f].state == state.DIVING or galaxians[f].state == state.LAUNCHING or 
+                                                            galaxians[f].state == state.FORMATION_DIVING):
+                    divingTotal += 1
+            # if a galaxian is destroyed or escaped then find the formation edges again 
             if getBoundaryEdge:
                 formationLeftEdge = getFormationEdge(minMaxBorder, startingLeftEdge, 0, 1)
-                formationRightEdge = getFormationEdge(minMaxBorder, startingRightEdge, 45, -1)
+                formationRightEdge = getFormationEdge(minMaxBorder, startingRightEdge, len(minMaxBorder) - 1, -1)
             
             galaxians = removeDestroyed(galaxians)
             
@@ -399,6 +420,7 @@ while (True):
         if gameOver:
             galaxians = []
             backgroundStars = []
+            extraGalaxians = 0
             updateHiScore()
             
         
@@ -412,9 +434,10 @@ while (True):
         floatingScores[f].draw(fontArial, window)
     
     player.draw(window, SCREEN_HEIGHT)
-    
+    # ---------------
     # TESTING ONLY
     #pygame.draw.line(window, (255,255,255), (player.x, player.y), (player.x, 0))
+    # ---------------
     for f in range(len(bombs)):
         bombs[f].draw(window)
     
@@ -443,8 +466,10 @@ while (True):
     
     if gamePaused:
         window.blit(spritePaused, (0,0))
-    # test rectangle only
-    #testRect = pygame.draw.rect(window, (0,255,100), (formationLeftEdge, 246, formationRightEdge - formationLeftEdge, -200), 1)
+    # -------------------
+    # TESTING ONLY
+    #pygame.draw.rect(window, (0,255,100), (formationLeftEdge, 246, formationRightEdge - formationLeftEdge, -200), 1)
+    # -------------------
     
     pygame.display.flip()
     

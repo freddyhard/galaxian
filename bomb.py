@@ -16,8 +16,8 @@ class Bomb():
         
         self.mask = pygame.mask.from_surface(self.sprite)
         
-        self.add_x = 0.0 + dx
-        self.add_y = 1.0 + dy
+        self.add_x = dx * 0.35
+        self.add_y = dy + 1.0
         
         self.destroyed = False
         
@@ -32,7 +32,7 @@ class Bomb():
         
         self.hitArea = pygame.Rect(self.x + self.spriteCentre.x, self.y + self.spriteCentre.y, 
                                    self.spriteCentre.width, self.spriteCentre.height)
-        if player.alive:
+        if player.alive and self.y > 625:
             if self.hitArea.colliderect(player.hitArea):
                 x_offset = self.hitArea[0] - player.hitArea[0]
                 y_offset = self.hitArea[1] - player.hitArea[1]
@@ -40,9 +40,7 @@ class Bomb():
                     player.alive = False
                     self.destroyed = True
                     explosions.append(Explosion(player.x, player.y, self.FPS, "player"))
-    
-    
-    
-    
+
+
     def draw(self, window):
         window.blit(self.sprite, (self.x + self.spriteCentre[0], self.y + self.spriteCentre[1]))
